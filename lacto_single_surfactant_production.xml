@@ -1,0 +1,443 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+#########################################################################
+ iDynoMiCS: individual-based Dynamics of Microbial Communities Simulator
+#########################################################################
+
+-->
+
+
+<!-- The entire simulation description is contained within the <idynomics> mark-up tags. -->
+
+<idynomics>
+
+	<!--#####################################################################
+		SIMULATOR SECTION
+	######################################################################-->
+
+	<!-- the <simulator> mark-up defines some global simulation parameters for the run. -->
+
+	<simulator>
+
+        <!-- Set "quietMode" to true if you don't need the log file (saves space and simulation runs slightly faster) -->
+        <param name="quietMode">false</param>
+
+		<!-- change this parameter to 'true' for restarting runs from within
+			a results folder-->
+		<param name="restartPreviousRun">false</param>
+		
+		<!-- defining this value allows the simulation to be re-run deterministically -->
+		<!-- note that if a random.state file is present in the same directory then 
+			this will be used instead of the random seed -->
+		<param name="randomSeed">42</param>
+		
+		<!-- this specifies how often the output files should be written -->
+		<param name="outputPeriod" unit="hour">1</param>
+
+		<!-- iDynoMiCS may use a fixed or an adaptive global timestep. If 'adaptive' is true,
+			then the three 'timeStep***' parameters control the initial, minimum, and maximum
+			values the timestep may take. If 'adaptive' is false, then the value for
+			'timeStepIni' is used always.
+			When the simulation has reached the time specified by 'endOfSimulation', the
+			simulation will end. -->
+		<timeStep>
+			<param name="adaptive">false</param>
+			<param name="timeStepIni" unit="hour">.5</param>
+			<param name="timeStepMin" unit="hour">0.05</param>
+			<param name="timeStepMax" unit="hour">.5</param>
+			<param name="endOfSimulation" unit="day">0.67</param>
+		</timeStep>
+		<!-- The AGENTTIMESTEP which should always be EQUAL or LOWER than the global time step -->
+		<param name="agentTimeStep" unit="hour">0.05</param>
+		<!-- 
+			 planktonicManagement sets all paramaters necessary for planktonics
+			 params:
+			 - usePlanktonics: set to false if no bacterial agents are planktonic.
+			 MUST specify all parameters if using any planktonic/chemotaxing agents
+			 - planktonicArrivalRate: how often planktonics will be added to the system
+			 						  MUST be at least one arrival/agentTimeStep
+			 - planktonicTimeStep: how often planktonic locations/behavior will be updated
+			 
+			 
+		-->
+		<planktonicManagement>
+			<param name="usePlanktonics">true</param>
+			<param name="planktonicTimeStep" unit="hour">.01</param>
+		</planktonicManagement>
+		
+		<!-- Invasion/Competition simulation. Set to true if the simulation should stop once there is only one species left in the system -->
+		<param name="invComp">false</param> 
+
+	</simulator>
+
+
+	<!--#####################################################################
+		INPUT SECTION
+	######################################################################-->
+
+	<!-- You may define the initial condition from which to start a simulation
+		by specifying an agent and/or bulk conditions file to read in. Often,
+		the files listed are taken from an evolved state of a similar simulation.
+
+		Note that any input files MUST be in the same directory as this protocol file. -->
+
+	<input>
+		<param name="useAgentFile">false</param>
+		<param name="inputAgentFileURL">agent_State(last).xml</param>
+		<param name="useBulkFile">false</param>
+		<param name="inputBulkFileURL">env_Sum(last).xml</param>
+	</input>
+
+
+
+	<!--#####################################################################
+		SOLUTES AND BIOMASS TYPES SECTION
+	######################################################################-->
+
+	<!-- This section is where any solutes included in the simulation are defined. Each
+		solute must be assigned to a domain (which will be defined later in the protocol
+		file), given a name, and must have its diffusivity parameter set.
+
+		Note that the solute name 'pressure' is treated specially in the code:
+		- 'pressure' is used to calculate the biomass pressure that leads to biomass
+			spreading in the biofilm, and should generally be left as-is.
+
+		Diffusion coefficients are expressed in units of m2.day-1.
+	-->
+
+	<solute domain="MyBiofilm" name="MyGlucose">
+		<param name="diffusivity" unit="m2.day-1">4.32e-5</param>
+	</solute>
+	<solute domain="MyBiofilm" name="pressure">
+		<param name="diffusivity" unit="m2.day-1">1</param>
+	</solute>
+	<solute domain="MyBiofilm" name="o2d">
+		<param name="diffusivity" unit="m2.day-1">2e-4</param>
+	</solute>
+	<solute domain="MyBiofilm" name="Surfactant">
+		<param name="diffusivity" unit="m2.day-1">4.32e-6</param>
+	</solute>
+
+	<!-- This section defines the biomass types (NOT species types) that will be used in
+		the simulation. The possible types are 'biomass', 'inert', and 'capsule', representing
+		active biomass, inert biomass, and capsular material (generally EPS), respectively.
+		At a minimum 'biomass' must be defined. The species defined later will be made up of
+		these biomass types.
+
+		The densities are expressed in g.L-1 ( = kg.m-3 = fg.um-3).
+	-->
+
+	<particle name="biomass">
+		<param name="density" unit="g.L-1">550</param>
+	</particle>
+	<particle name="inert">
+		<param name="density" unit="g.L-1">550</param>
+	</particle>
+	<particle name="capsule">
+		<param name="density" unit="g.L-1">0</param>
+	</particle>
+
+
+
+	<!--#####################################################################
+		WORLD SECTION
+	######################################################################-->
+
+	<!-- The <world> mark-up describes the overall environment the simulation will model, and
+		is made up of several mark-ups:
+		- <bulk> for defining a bulk solute compartment that is a source or sink for solutes
+			involved in biofilm growth.
+		- <computationDomain> for defining the spatial region the biofilm will grow in.
+	-->
+
+	<world>
+		<bulk name="MyTank">
+
+			<!-- If 'isConstant' is set to false, then solute concentrations in the bulk will
+				change in time due to production and consumption by the biofilm and by dilution
+				at the rate 'D' -->
+			<param name="isConstant">true</param>
+			<param name="D" unit="h-1">0.6</param>
+
+			<!-- List the solutes that reside in this bulk compartment, along with the initial
+				concentration ('Sbulk') and influent concentration ('Sin'). 
+
+				Concentrations should be given as g.L-1 ( = kg.m-3 = fg.um-3 ).
+				The 'pressure' solute parameters should be left as-is.
+			-->
+			<solute name="MyGlucose">
+				<param name="Sbulk" unit="g.L-1">2</param>
+				<param name="Sin" unit="g.L-1">2</param>
+			</solute>
+			<solute name="pressure">
+				<param name="Sbulk" unit="g.L-1">0</param>
+				<param name="Sin" unit="g.L-1">0</param>
+			</solute>
+			<solute name="o2d">
+				<param name="Sbulk" unit="g.L-1">0.0064</param>
+				<param name="Sin" unit="g.L-1">0.0064</param>
+			</solute>
+			<solute name="Surfactant">
+				<param name="Sbulk" unit="g.L-1">0</param>
+				<param name="Sin" unit="g.L-1">0</param>
+			</solute>
+		</bulk>
+
+		<!-- The computation domain is a physical region that will contain the biofilm,
+			and has a more complex setup. -->
+
+		<computationDomain name="MyBiofilm">
+
+			<!-- These parameters define whether the domain is 2D or 3D, and the number of
+				grid elements in each direction. 'nI', 'nJ', and 'nK' should be a power of two +1
+				(i.e. 33, 65, 129, etc.), and if 'nDim' is 3, then 'nK' should not be 1.
+
+				The 'resolution' parameter defines the size of an element edge, and so the
+				global domain size in a direction is the number of elements times the resolution:
+					nI*resolution
+			-->
+			<grid nDim="3" nI="17" nJ="17" nK="17"/>
+			<param name="resolution" unit="um">8</param>
+
+			<!-- 'boundaryLayer' sets the distance above the biofilm/liquid interface that the
+				liquid is assumed to be spatially invariant; within this distance from the biofilm the
+				solute concentration will vary because of diffusion. The length of the boundaryLayer 
+				must be a multiple of the grid resolution
+				-->
+			<param name="boundaryLayer" unit="um">18</param>
+
+			<!-- The 'biofilmDiffusivity' sets the relative diffusivity of the biofilm compared
+				to water; because the biofilm is slightly more dense than water, the diffusivity
+				will be lower. -->
+			<param name="biofilmDiffusivity">0.8</param>
+
+			<!-- The 'specificArea' is the surface-to-volume ratio of the reactor or world system, and
+				is used to scale up the limited computation domain to the global scale. -->
+			<param name="specificArea" unit="m2.m-3">80</param>
+
+
+			
+
+			<boundaryCondition class="BoundaryZeroFlux" name="y0z">
+				<shape class="Planar">
+					<param name="pointIn" x="-1" y="0" z="0"/>
+					<param name="vectorOut" x="-1" y="0" z="0"/>
+				</shape>
+			</boundaryCondition>
+
+			<boundaryCondition class="BoundaryBulk" name="yNz">
+				<param name="activeForSolute">yes</param>
+				<param name="bulk">MyTank</param>
+				<shape class="Planar">
+					<param name="pointIn" x="17" y="0" z="0"/>
+					<param name="vectorOut" x="1" y="0" z="0"/>
+				</shape>
+			</boundaryCondition>
+
+			<boundaryCondition class="BoundaryCyclic" name="x0z">
+				<shape class="Planar">
+					<param name="pointIn" x="0" y="-1" z="0"/>
+					<param name="vectorOut" x="0" y="-1" z="0"/>
+				</shape>
+				<shape class="Planar">
+					<param name="pointIn" x="0" y="17" z="0"/>
+					<param name="vectorOut" x="0" y="1" z="0"/>
+				</shape>
+			</boundaryCondition>
+
+			<boundaryCondition class="BoundaryCyclic" name="x0y">
+				<shape class="Planar">
+					<param name="pointIn" x="0" y="0" z="-1"/>
+					<param name="vectorOut" x="0" y="0" z="-1"/>
+				</shape>
+				<shape class="Planar">
+					<param name="pointIn" x="0" y="0" z="17"/>
+					<param name="vectorOut" x="0" y="0" z="1"/>
+				</shape>
+			</boundaryCondition>
+
+		</computationDomain>
+	</world>
+
+
+
+	
+	
+	<reaction catalyzedBy="biomass" class="ReactionFactor" name="MyGrowthlacto">
+		<param name="muMax" unit="hour-1">0.153</param>
+		<kineticFactor class="MonodKinetic" solute="MyGlucose" >
+			<param name="Ks" unit="g.L-1">1.2</param>
+		</kineticFactor>
+		<kineticFactor class="MonodKinetic" solute="o2d">
+			<param name="Ks" unit="g.L-1">0.2e-3</param>
+		</kineticFactor>
+		<yield>
+			<param name="MyGlucose" unit="g.g-1">-0.17</param>
+			<param name="o2d" unit="g.g-1">-1</param>
+			<param name="biomass" unit="g.g-1">0.8</param>
+		</yield>
+	</reaction>
+	<reaction catalyzedBy="biomass" class="ReactionFactor" name="Surfactant_prod">
+		<param name="muMax" unit="hour-1">0.7</param>
+		<kineticFactor class="FirstOrderKinetic" solute="MyGlucose">
+		</kineticFactor>
+		<yield>
+			<param name="Surfactant" unit="g.g-1">0.4</param>
+		</yield>
+	</reaction>
+	
+	
+
+	<!--#####################################################################
+		SOLVER SECTION
+	######################################################################-->
+
+	<!-- The <solver> mark-ups define the solvers to be used in calculating different
+		aspects of the simulation -->
+
+	<!-- The 'Solver_multigrid' solver will compute solute concentrations in the
+		given computational domain. The given parameters pertain to details of
+		the multigrid algorithm and should generally be left as-is. The list of
+		<reaction> mark-ups should include ALL reactions that affect solute concentrations
+		in the domain through production or consumption. -->
+
+	<solver class="Solver_multigrid" name="solutes" domain="MyBiofilm">
+		<param name="active">true</param>
+		<param name="preStep">150</param>
+		<param name="postStep">150</param>
+		<param name="coarseStep">1500</param>
+		<param name="nCycles">5</param>
+		<reaction name="MyGrowthlacto"/>
+		<reaction name="Surfactant_prod"/>
+		
+	</solver>
+
+	<!-- The 'Solver_pressure' solver is used to compute the pressure field in the biofilm
+		that is used to spread biomass due to growth. -->
+
+	<solver class="Solver_pressure" name="pressure" domain="MyBiofilm">
+		<param name="active">true</param>
+	</solver>
+
+
+
+	<!--#####################################################################
+		AGENT GRID SECTION
+	######################################################################-->
+
+	<!-- The agent grid contains and manages all agents living in the given domain.
+		The parameters should be adjusted to match the simulation conditions. -->
+
+	<agentGrid>
+		<!-- domain of agents to manage -->
+		<param name="computationDomain">MyBiofilm</param>
+
+		<!-- The resolution should be a multiple of two of the computationDomain resolution,
+			and should be on the order of the diameter of the largest species. -->
+		<param name="resolution" unit="um">8</param>
+
+		
+		<detachment class="DS_Quadratic">
+			<param name="kDet" unit="um-1.hour-1">5e-6</param>
+			<param name="maxTh" unit="um">200</param>
+		</detachment>
+
+		
+		<param name="sloughDetachedBiomass">false</param>
+		
+		<!-- These parameters relate to particle shoving and are generally okay as-is. -->
+		<param name="shovingMaxNodes">2e6</param>
+		<param name="shovingFraction">0.025</param>
+		<param name="shovingMaxIter">250</param>
+		<param name="shovingMutual">true</param>
+	</agentGrid>
+
+	
+
+<species class="ChemotaxingPlanktonic" name="lactoPlank">
+		<particle name="biomass">
+			<param name="mass" unit="fg">0</param>
+		</particle>
+		<particle name="inert">
+			<param name="mass" unit="fg">0</param>
+		</particle>
+		
+		
+		<param name="willAttach">false</param>
+		<param name="distEachRun" unit="um">5</param>
+		<param name="arrivalRate" unit="agents/hour">1</param>
+		<param name="attachmentDistance" unit = "um">3</param>
+		<param name="becomesBiofilmSpecies">Mylacto</param>
+		
+		
+		<param name="chemoeffector">Surfactant</param>
+		<param name="chem_threshold" unit="g.L-1">.008</param>
+		<param name="repellent">true</param>
+		
+		<param name="color">black</param>
+		<param name="computationDomain">MyBiofilm</param>
+		<param name="divRadius" unit="um">2</param>
+		<param name="divRadiusCV">0.1</param>
+		<param name="deathRadius" unit="um">0.2</param>
+		<param name="deathRadiusCV">0.1</param>
+		<param name="babyMassFrac">0.5</param>
+		<param name="babyMassFracCV">0.05</param>
+		<param name="shoveFactor" unit="um">1.15</param>
+		<param name="shoveLimit" unit="um">0.</param>
+
+		<param name="epsMax">0.1</param>
+		<param name="kHyd" unit="hr-1">0.007</param>
+		<reaction name="MyGrowthlacto" status="active"/>
+		<reaction name="Surfactant_prod" status="active"/> 
+	</species>
+	
+	
+
+
+
+<species class="BactLeaver" name="Mylacto">
+		<particle name="biomass">
+			<param name="mass" unit="fg">0</param>
+		</particle>
+		<particle name="inert">
+			<param name="mass" unit="fg">0</param>
+		</particle>
+		
+		<!-- Biofilm-leaving parameters -->
+		<param name="becomesPlanktonicSpecies">lactoPlank</param>
+		<param name="leavingProbability">.5</param> <!-- decimal in range [0,1] -->
+		<param name="chemoeffector">Surfactant</param>
+		<param name="chemoeffectorThreshold" unit="g.L-1">.008</param>
+		
+		<param name="color">red</param>
+		<param name="computationDomain">MyBiofilm</param>
+		<param name="divRadius" unit="um">2</param>
+		<param name="divRadiusCV">0.1</param>
+		<param name="deathRadius" unit="um">0.2</param>
+		<param name="deathRadiusCV">0.1</param>
+		<param name="babyMassFrac">0.5</param>
+		<param name="babyMassFracCV">0.05</param>
+		<param name="shoveFactor" unit="um">1.15</param>
+		<param name="shoveLimit" unit="um">0.</param>
+
+		<param name="epsMax">0.1</param>
+		<param name="kHyd" unit="hr-1">0.007</param>
+
+		<reaction name="MyGrowthlacto" status="active"/>
+		<reaction name="Surfactant_prod" status="active"/> 
+		<initArea number="176">
+			<param name="birthday" unit="hour">0</param>
+			<coordinates x="0" y="0" z="0"/>
+			<coordinates x="1" y="136" z="136"/>
+		</initArea>
+	</species>
+	
+
+	
+	
+
+	
+
+
+</idynomics>
