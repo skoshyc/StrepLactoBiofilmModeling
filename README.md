@@ -24,6 +24,8 @@ lacto_single_toxinAndsurfactant_production.xml: Protocol file to generate a Lact
 
 strep_single.xml: Protocol file to generate a biofilm with only Streptococcus oralis
 
+strep_lacto_nullmodel.xml: Protocol file to generate S. oralis-L. paracasei biofilm where they compete only for space.
+
 strep_lacto_competition.xml: Protocol file to generate S. oralis-L. paracasei biofilm where they compete for space and nutrients. 
 
 strep_lacto_inhibition.xml: Protocol file to generate S. oralis-L. paracasei biofilm where they compete for space and nutrients and when L. paracasei secretes an inhibitor to the growth of S. oralis. 
