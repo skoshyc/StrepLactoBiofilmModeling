@@ -42,10 +42,10 @@
 			When the simulation has reached the time specified by 'endOfSimulation', the
 			simulation will end. -->
 		<timeStep>
-			<param name="adaptive">false</param>
-			<param name="timeStepIni" unit="hour">.5</param>
+			<param name="adaptive">true</param>
+			<param name="timeStepIni" unit="hour">0.1</param>
 			<param name="timeStepMin" unit="hour">0.05</param>
-			<param name="timeStepMax" unit="hour">.5</param>
+			<param name="timeStepMax" unit="hour">1.0</param>
 			<param name="endOfSimulation" unit="day">0.67</param>
 		</timeStep>
 		<!-- The AGENTTIMESTEP which should always be EQUAL or LOWER than the global time step -->
