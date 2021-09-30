@@ -388,7 +388,7 @@
 		<param name="chem_threshold" unit="g.L-1">0.005</param>
 		<param name="repellent">true</param>
 		
-		<param name="color">green</param>
+		<param name="color">yellow</param>
 		<param name="computationDomain">MyBiofilm</param>
 		<param name="divRadius" unit="um">2</param>
 		<param name="divRadiusCV">0.1</param>
@@ -467,7 +467,7 @@
 		<param name="chem_threshold" unit="g.L-1">.008</param>
 		<param name="repellent">true</param>
 		
-		<param name="color">red</param>
+		<param name="color">magenta</param>
 		<param name="computationDomain">MyBiofilm</param>
 		<param name="divRadius" unit="um">2</param>
 		<param name="divRadiusCV">0.1</param>
